@@ -4,10 +4,10 @@ from pydantic import BaseModel
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
-# Load the .env file
+# Load environment variables
 load_dotenv()
 
-# --- Initialize Supabase ---
+# --- Initialize Supabase Client ---
 url: str = os.getenv("SUPABASE_URL")
 key: str = os.getenv("SUPABASE_SERVICE_KEY")
 supabase: Client = create_client(url, key)
@@ -23,7 +23,6 @@ class ChatResponse(BaseModel):
 # --- FastAPI App ---
 app = FastAPI()
 
-# --- Chatbot Logic ---
 def get_field_from_question(question: str) -> str:
     """Determines which database column to query based on keywords."""
     question_lower = question.lower()
@@ -31,28 +30,30 @@ def get_field_from_question(question: str) -> str:
         return "era"
     if "where" in question_lower or "location" in question_lower:
         return "location"
+    if "history" in question_lower:
+        return "history"
     # Default to the main description for any other question
     return "description"
 
 @app.post("/chat", response_model=ChatResponse)
 def chat_handler(request: ChatRequest):
-    """Handles chat request, gets keyword, and fetches data from Supabase."""
+    """Handles chat request by fetching data directly from Supabase based on keywords."""
     
-    # 1. Determine which piece of data to get
     field_to_fetch = get_field_from_question(request.question)
     
     try:
-        # 2. Query the 'heritage_sites' table in Supabase
         response = supabase.table("heritage_sites").select(field_to_fetch).eq("id", request.siteId).execute()
         
         if not response.data:
             raise HTTPException(status_code=404, detail="Site ID not found in the database.")
             
-        # 3. Extract the answer from the database response
         answer = response.data[0].get(field_to_fetch, "Sorry, I could not find that information.")
         
+        if not answer:
+            answer = "Information for that topic is not available for this site."
+
         return ChatResponse(answer=answer)
 
     except Exception as e:
-        # This will catch any errors from the database
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"An error occurred: {e}")
+        raise HTTPException(status_code=500, detail="An error occurred while processing your request.")
