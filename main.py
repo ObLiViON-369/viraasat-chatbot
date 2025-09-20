@@ -21,18 +21,26 @@ class ChatResponse(BaseModel):
     answer: str
 
 # --- FastAPI App ---
+# This line creates the main application object that Uvicorn needs to find.
 app = FastAPI()
 
 def get_field_from_question(question: str) -> str:
-    """Determines which database column to query based on keywords."""
+    """Analyzes the question for keywords to determine which database column to query."""
     question_lower = question.lower()
-    if "when" in question_lower or "era" in question_lower or "built" in question_lower:
+    
+    # Keywords for each topic
+    era_keywords = ["when", "era", "built", "year", "age", "constructed"]
+    location_keywords = ["where", "location", "located", "address"]
+    history_keywords = ["history", "story", "background", "about"]
+
+    if any(keyword in question_lower for keyword in era_keywords):
         return "era"
-    if "where" in question_lower or "location" in question_lower:
+    if any(keyword in question_lower for keyword in location_keywords):
         return "location"
-    if "history" in question_lower:
+    if any(keyword in question_lower for keyword in history_keywords):
         return "history"
-    # Default to the main description for any other question
+    
+    # Default to description if no specific keywords are found
     return "description"
 
 @app.post("/chat", response_model=ChatResponse)
@@ -57,3 +65,4 @@ def chat_handler(request: ChatRequest):
     except Exception as e:
         print(f"An error occurred: {e}")
         raise HTTPException(status_code=500, detail="An error occurred while processing your request.")
+    
